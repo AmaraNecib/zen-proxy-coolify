@@ -566,9 +566,23 @@ function fmtUp(sec) {
   return h > 0 ? h + "h " + m + "m" : m > 0 ? m + "m " + s + "s" : s + "s"
 }
 
+let uptimeBase = null
+let uptimeReceivedAt = 0
+let statusInFlight = false
+function renderUptime() {
+  if (uptimeBase === null) return
+  const elapsed = (performance.now() - uptimeReceivedAt) / 1000
+  $("ovUptime").textContent = fmtUp(Math.floor(uptimeBase + elapsed))
+}
+
 async function refreshStatus() {
+  if (statusInFlight) return
+  statusInFlight = true
   try {
     const st = await api("/api/status")
+    uptimeBase = Number.isFinite(st.uptimePrecise) ? st.uptimePrecise : st.uptime
+    uptimeReceivedAt = performance.now()
+    renderUptime()
     const dot = $("upstreamDot"), txt = $("upstreamText")
     dot.className = "dot " + (st.upstreamOk ? "ok" : "bad")
     txt.textContent = st.upstreamOk ? "OK" : "DOWN"
@@ -577,7 +591,6 @@ async function refreshStatus() {
     $("ovUpstream").dataset.host = new URL(st.upstream).host || st.upstream
     $("ovUa").textContent = "UA: " + st.ua
     $("ovUa").title = st.uaAutoVersion && st.uaAutoVersion !== (st.ua.split("/")[1] || "") ? "latest opencode: " + st.uaAutoVersion : ""
-    $("ovUptime").textContent = fmtUp(st.uptime)
     $("ovTotal").textContent = st.requests.total
     $("ovErr").textContent = st.requests.errors + " errors"
     $("ovMin").textContent = st.requests.lastMinute
@@ -598,6 +611,8 @@ async function refreshStatus() {
     hideBanner()
   } catch (e) {
     if (e.message !== "unauthorized") { $("upstreamDot").className = "dot bad"; $("upstreamText").textContent = "unreachable" }
+  } finally {
+    statusInFlight = false
   }
 }
 
@@ -991,6 +1006,7 @@ async function refreshAll() {
 
 api("/api/status").then(() => {
   refreshAll()
+  setInterval(renderUptime, 1000)
   setInterval(refreshStatus, 4000)
   setInterval(loadLogs, 8000)
 }).catch(() => showAuth())

@@ -2371,6 +2371,7 @@ async function handleStatus(req, res) {
   const authMode = config.defaultZenKey ? (config.proxyKey ? "proxy+byok" : "byok") : config.proxyKey ? "proxy" : "public"
   json(res, 200, {
     uptime: Math.floor(process.uptime()),
+    uptimePrecise: process.uptime(),
     upstreamOk: cache.ok,
     upstream: config.upstream,
     ua: config.ua,
