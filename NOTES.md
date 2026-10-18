@@ -50,6 +50,6 @@ Upstream rate limits **per egress IP**. Measured same-second A/B: datacenter IP 
 
 1. ~~Dashboard password → HttpOnly cookie.~~ Done: `/api/login` sets `zp_session` (HttpOnly, SameSite=Strict, Secure off on loopback), `/api/logout` clears it, `adminAuth` accepts it, `localStorage` removed.
 2. ~~`/v1/messages` `x-api-key` bypass.~~ Done: a client key is forwarded only when no `proxyKey` is configured.
-3. README section on per-IP rate limits and the `ZEN_KEY` option.
+3. ~~README section on per-IP rate limits and the `ZEN_KEY` option.~~ Done.
 4. Optional `EGRESS_PROXY` env var in `zen-proxy.mjs`.
 5. Flip `big-pickle` to `reasoning: true` in `models.json` if its thinking switch is wanted.

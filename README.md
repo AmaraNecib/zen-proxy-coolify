@@ -44,6 +44,20 @@ Fork-specific files: `compose.yaml`, `Dockerfile`, the two installers (which def
 
 ---
 
+## Rate limits (429)
+
+Upstream rate limits are **per egress IP**, not global. A datacenter IP (typical for a VPS/Coolify deploy) can return `429` on `mimo-v2.6-flash-free` and `glm-5.3-flash-free` while a residential IP returns `200` on the same models in the same second. There is no code fix inside the proxy for this — it is upstream quota enforcement.
+
+Levers, best first:
+
+1. Run the proxy where the quota is healthy (your own machine, residential connection).
+2. Bring your own Zen key: set `ZEN_KEY` (or `defaultZenKey` in config). A real key gets a higher, steadier quota than anonymous `public`.
+3. Order `fallbackModels` with healthy models first; the fallback chain already absorbs `429`s.
+
+IP rotation to dodge the limit is out of scope — it evades the upstream terms. An `EGRESS_PROXY` env var pointed at a network you own is the honest version if you need one; not yet implemented.
+
+---
+
 ## Deploy with Coolify
 
 This repository includes a root-level `compose.yaml` and `Dockerfile` for Coolify.
