@@ -133,7 +133,7 @@ main { max-width:1120px; margin:28px auto 70px; padding:0 18px }
 @media (prefers-reduced-motion: reduce) { .tab.active { animation:none } }
 
 /* ---------- cards ---------- */
-.cards { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:24px }
+.cards { display:grid; grid-template-columns:repeat(6,1fr); gap:16px; margin-bottom:24px }
 @media (max-width:1000px) { .cards { grid-template-columns:repeat(3,1fr) } }
 @media (max-width:760px) { .cards { grid-template-columns:repeat(2,1fr) } }
 @media (max-width:460px) { .cards { grid-template-columns:1fr } }
@@ -377,6 +377,7 @@ textarea { resize:vertical; min-height:96px; font-family:var(--mono); font-size:
       <div class="card"><div class="label">Uptime</div><div class="value" id="ovUptime">–</div><div class="sub">seconds online</div></div>
       <div class="card"><div class="label">Last minute</div><div class="value" id="ovMin">–</div><div class="sub" id="ov5m">– in 5 min</div></div>
       <div class="card"><div class="label">Models</div><div class="value" id="ovModels">–</div><div class="sub" id="ovAllowed">– allowed</div></div>
+      <div class="card"><div class="label">Egress proxy</div><div class="value mono" id="ovEgress">–</div><div class="sub" id="ovEgressDetail">checking startup config</div></div>
     </div>
 
     <div class="panel">
@@ -550,6 +551,16 @@ async function refreshStatus() {
     $("ov5m").textContent = st.requests.last5m + " in 5 min"
     $("ovModels").textContent = st.models.total
     $("ovAllowed").textContent = st.models.allowed + " allowed"
+    const egressLabels = {
+      active: ["active", "Node started with proxy routing enabled"],
+      disabled: ["not configured", "Using the server's default network route"],
+      "not-active": ["not active", "Set EGRESS_PROXY, HTTP_PROXY, HTTPS_PROXY and NODE_USE_ENV_PROXY before startup"],
+      "unsupported-runtime": ["unsupported Node", "Use Node 22.21+ or 24+"],
+      invalid: ["invalid URL", "EGRESS_PROXY must be an http:// or https:// URL"],
+    }
+    const [egressLabel, egressDetail] = egressLabels[st.egressProxy?.state] || ["unknown", "Check the proxy environment"]
+    $("ovEgress").textContent = egressLabel
+    $("ovEgressDetail").textContent = egressDetail
     if (document.getElementById("tab-overview").classList.contains("active")) renderTable(st.recent)
     hideBanner()
   } catch (e) {

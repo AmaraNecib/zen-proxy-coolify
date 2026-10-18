@@ -13,14 +13,39 @@ const ENV = process.env
 // Separate browser credential; fall back to PROXY_KEY for existing installs.
 const DASHBOARD_PASSWORD = ENV.DASHBOARD_PASSWORD ?? ""
 
-// Optional egress proxy (single URL, e.g. https://user:pass@host:port). When set,
-// Node honors it for every upstream fetch via NODE_USE_ENV_PROXY. When unset,
-// traffic uses the machine default egress IP (normal behavior).
-const EGRESS_PROXY = (ENV.EGRESS_PROXY ?? "").trim()
-if (EGRESS_PROXY) {
-  process.env.HTTPS_PROXY = EGRESS_PROXY
-  process.env.HTTP_PROXY = EGRESS_PROXY
-  process.env.NODE_USE_ENV_PROXY = "1"
+// Egress is resolved from the process environment at startup. Node reads
+// NODE_USE_ENV_PROXY and the proxy URLs before this module runs, so the
+// launcher (Docker Compose, shell, or service manager) must set all four vars.
+function resolveEgressProxy(env = ENV, nodeVersion = process.versions.node) {
+  const url = String(env.EGRESS_PROXY ?? "").trim()
+  if (!url) return { state: "disabled", configured: false }
+
+  let parsed
+  try { parsed = new URL(url) } catch { return { state: "invalid", configured: true } }
+  if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname) {
+    return { state: "invalid", configured: true }
+  }
+
+  const [major, minor] = nodeVersion.split(".").map(Number)
+  const supportsEnvProxy = major >= 25 || major === 24 || (major === 22 && minor >= 21)
+  if (!supportsEnvProxy) return { state: "unsupported-runtime", configured: true }
+
+  const enabledAtStartup = env.NODE_USE_ENV_PROXY === "1"
+  const httpProxy = String(env.HTTP_PROXY ?? "").trim()
+  const httpsProxy = String(env.HTTPS_PROXY ?? "").trim()
+  if (!enabledAtStartup || httpProxy !== url || httpsProxy !== url) {
+    return { state: "not-active", configured: true }
+  }
+  return { state: "active", configured: true }
+}
+
+const egressProxy = resolveEgressProxy()
+if (egressProxy.state === "not-active") {
+  console.warn("EGRESS_PROXY is set, but startup proxy settings are incomplete; upstream fetches may bypass it")
+} else if (egressProxy.state === "unsupported-runtime") {
+  console.warn("EGRESS_PROXY needs Node.js 22.21+ or 24+ for built-in fetch proxy support")
+} else if (egressProxy.state === "invalid") {
+  console.warn("EGRESS_PROXY must be an http:// or https:// proxy URL")
 }
 
 // Model ids only ever travel inside JSON bodies, never a URL or a path, so the
@@ -2308,6 +2333,7 @@ async function handleStatus(req, res) {
     responsesModels: [...(config.responsesModels ?? [])],
     rateLimit: { max: config.rateLimitMax, windowMs: config.rateLimitWindowMs },
     probeAuth: config.probeAuth ?? "auto",
+    egressProxy,
     models: {
       total: cache.data.length,
       allowed: ALLOWED().size,

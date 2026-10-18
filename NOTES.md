@@ -40,6 +40,7 @@ Upstream rate limits **per egress IP**. Measured same-second A/B: datacenter IP 
 - The fallback chain already absorbs 429s (`glm` 429 answered as `space-bunny-free`).
 - Levers, best first: run where the quota is healthy (local machine), use your own Zen key via `ZEN_KEY` / `defaultZenKey`, and order `fallbackModels` with healthy models first.
 - IP rotation to dodge the limit was rejected — it evades the upstream terms and is a fragile fight. An explicit opt-in `EGRESS_PROXY` env var, pointed at a network you own, is the honest version.
+- Egress wiring issue found: setting `NODE_USE_ENV_PROXY`, `HTTP_PROXY` and `HTTPS_PROXY` inside `zen-proxy.mjs` is too late because Node reads them before module startup. Compose now provides them before launch; the dashboard reports whether proxy routing is active. Verify one client request against Oxylabs statistics after redeploy.
 
 ## Rejected or inert ideas
 
