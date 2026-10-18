@@ -20,6 +20,21 @@
 
 ---
 
+## A fork of zen-proxy
+
+This repository is a maintained fork of [zen-proxy](https://github.com/12errh/zen-proxy) (MIT) by its original author. Everything in the header above is upstream work; the changes below are deployment and credential separation on top of it.
+
+| Change | Why it exists | What it buys you |
+|---|---|---|
+| Separate `DASHBOARD_PASSWORD` from `PROXY_KEY` ([`bd6ad32`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/bd6ad32)) | One secret was doing two jobs: gating the dashboard and authorising API calls. | Compromising one no longer compromises both. You can give someone dashboard access without giving them an API credential, and rotate either one independently. |
+| `PROXY_KEY` environment variable wins over saved config ([`c49b045`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/c49b045), [`aa39bfa`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/aa39bfa)) | The dashboard writes config back to disk, so a real secret ended up sitting in a file in the container volume. | Secrets stay in the container environment or your orchestrator, not on disk. |
+| Root `compose.yaml` and `Dockerfile` ([`6350e58`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/6350e58)) | There was no one-command path to a containerised deploy. | One-click Coolify deployment. Coolify's proxy terminates HTTPS and the container port is never published to the internet. |
+| README credential walkthrough ([`fdb9146`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/fdb9146)) | The upstream setup docs described a single credential, so people typed the dashboard password into their agent. | The two credentials are documented as separate fields, which is exactly the confusion this project's own setup hit. |
+
+Fork-specific files: `compose.yaml`, `Dockerfile`, the two installers (which default to this repository instead of upstream), and this section.
+
+---
+
 ## Deploy with Coolify
 
 This repository includes a root-level `compose.yaml` and `Dockerfile` for Coolify.
@@ -35,11 +50,11 @@ The Compose file references `${PROXY_KEY}` and `${DASHBOARD_PASSWORD}` so Coolif
 ### Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/12errh/zen-proxy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/AmaraNecib/zen-proxy-coolify/main/install.sh | bash
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/12errh/zen-proxy/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/AmaraNecib/zen-proxy-coolify/main/install.ps1 | iex
 ```
 
 <sub>That is the entire installation — no account, no API key, no `npm install`. Now pick your agent below.</sub>
