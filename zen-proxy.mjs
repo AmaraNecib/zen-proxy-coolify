@@ -242,6 +242,10 @@ function loadConfig() {
   try {
     const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"))
     const merged = { ...DEFAULT_CONFIG, ...raw }
+    // Deployment secrets supplied through the environment must take precedence
+    // over values persisted in the writable config volume. Otherwise changing
+    // PROXY_KEY in Coolify has no effect after the first boot.
+    if (ENV.PROXY_KEY != null) merged.proxyKey = ENV.PROXY_KEY
     // A config file that predates the models.json catalog still holds a list
     // written by an older build. Those are only ever subsets of what we shipped
     // (the runtime sync used to prune dead entries and save the result), so
