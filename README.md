@@ -35,6 +35,15 @@ Fork-specific files: `compose.yaml`, `Dockerfile`, the two installers (which def
 
 ---
 
+## Security notes
+
+- **The dashboard password is kept in your browser, not on the server.** Login sets an `HttpOnly`, `SameSite=Strict` cookie (`zp_session`) that page scripts cannot read, and **Log out** clears it. Earlier builds stored the password in `localStorage` as plain text, where any script in the page could read it and it survived after you walked away. Run a current build.
+- **The dashboard is the control plane, not a viewer.** Whoever holds the password can change `upstream` — which turns the proxy into a man-in-the-middle for every prompt your agent sends — set their own `proxy key`, set a `zen key`, rewrite `fallback models` and `model aliases`, change the `user-agent`, and read the request log.
+- **Never publish port 8787.** Keep the origin behind your reverse proxy with HTTPS. If a credential leaks, rotate both secrets in the container environment and redeploy.
+- **`POST /v1/messages` used to forward any `x-api-key` header upstream**, which bypassed `PROXY_KEY` on that route and opened the anonymous tier to anyone who could reach the origin. Fixed in this repository: a configured `proxy key` is now the only credential on that route. The OpenAI routes were always gated.
+
+---
+
 ## Deploy with Coolify
 
 This repository includes a root-level `compose.yaml` and `Dockerfile` for Coolify.

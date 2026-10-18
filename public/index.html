@@ -255,6 +255,8 @@ button:active { transform:translate(2px,2px); box-shadow:0 0 0 var(--ink) }
 button:disabled { opacity:.45; cursor:not-allowed; transform:none; box-shadow:4px 4px 0 var(--ink) }
 button.primary { background:var(--acid); color:var(--ink); box-shadow:5px 5px 0 var(--ink) }
 button.primary:hover { box-shadow:7px 7px 0 var(--ink) }
+button.ghost { background:transparent; color:var(--muted); border:1px solid var(--line,#3a3a3a); font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer }
+button.ghost:hover { color:var(--ink) }
 input, select, textarea {
   background:#fff; color:var(--ink); border:2px solid var(--ink); border-radius:10px;
   padding:11px 13px; font-size:13.5px; width:100%; font-family:var(--sans);
@@ -356,6 +358,7 @@ textarea { resize:vertical; min-height:96px; font-family:var(--mono); font-size:
     <button data-tab="logs">Logs</button>
   </nav>
   <span class="pill" id="upstreamPill"><span class="dot" id="upstreamDot"></span><span id="upstreamText">checking…</span></span>
+  <button class="ghost" id="logoutBtn" onclick="logout()" title="Log out of the dashboard">Log out</button>
 </header>
 
 <div class="marquee" aria-hidden="true">
@@ -470,15 +473,15 @@ textarea { resize:vertical; min-height:96px; font-family:var(--mono); font-size:
 
 <script>
 const $ = (id) => document.getElementById(id)
-let key = localStorage.getItem("zpKey") || ""
 let config = null
 let savedZenKeyMasked = ""
 
+// Sessions live in an HttpOnly cookie set by /api/login, so no secret sits in
+// localStorage where any script in the page could read it.
 function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) }
-  if (key) headers["Authorization"] = "Bearer " + key
   if (opts.body) headers["Content-Type"] = "application/json"
-  return fetch(path, { ...opts, headers }).then(async (r) => {
+  return fetch(path, { credentials: "same-origin", ...opts, headers }).then(async (r) => {
     if (r.status === 401) { showAuth(); throw new Error("unauthorized") }
     return r.json()
   })
@@ -498,19 +501,24 @@ function showAuth() {
   $("authScreen").style.display = "flex"
   $("authKey").focus()
 }
-async function submitAuth() {
-  key = $("authKey").value.trim()
-  localStorage.setItem("zpKey", key)
+async async function submitAuth() {
+  const password = $("authKey").value.trim()
   try {
-    await api("/api/status")
+    await api("/api/login", { method: "POST", body: JSON.stringify({ password }) })
+    $("authKey").value = ""
     $("authScreen").style.display = "none"
     toast("Unlocked")
     refreshAll()
   } catch {
-    toast("Wrong key", "bad")
-    key = ""
-    localStorage.removeItem("zpKey")
+    toast("Wrong password", "bad")
   }
+}
+
+async function logout() {
+  await api("/api/logout", { method: "POST" }).catch(() => {})
+  $("authKey").value = ""
+  $("authScreen").style.display = "flex"
+  toast("Logged out")
 }
 $("authKey").addEventListener("keydown", (e) => { if (e.key === "Enter") submitAuth() })
 

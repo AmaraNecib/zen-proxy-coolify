@@ -1048,12 +1048,16 @@ async function handleMessages(req, res) {
   const { requested, candidates } = resolveModel(body.model)
   const isStream = !!body.stream
   // Route the credential the client sent. x-api-key is Anthropic's convention
-  // and may legitimately be a real Zen key, so prefer it over the bearer token.
+  // and may legitimately be a real Zen key, so prefer it over the bearer token —
+  // but only while no proxyKey is configured. Once a proxyKey exists it is the
+  // sole credential: forwarding a caller-chosen x-api-key would let anyone
+  // reach the anonymous upstream tier without it.
   const apiKey = bearerOrKey(req)
   let auth = authForUpstream(req)
-  if (typeof req.headers["x-api-key"] === "string" && req.headers["x-api-key"].trim()) {
+  const forwardClientKey = !config.proxyKey && !config.defaultZenKey
+  if (typeof req.headers["x-api-key"] === "string" && req.headers["x-api-key"].trim() && forwardClientKey) {
     auth = `Bearer ${req.headers["x-api-key"].trim()}`
-  } else if (apiKey && apiKey !== "public" && !config.proxyKey && !config.defaultZenKey) {
+  } else if (apiKey && apiKey !== "public" && forwardClientKey) {
     auth = `Bearer ${apiKey}`
   }
   if (!auth) {
@@ -2136,9 +2140,55 @@ async function handleModels(req, res) {
   json(res, 200, { object: "list", data: cache.data, ok: cache.ok })
 }
 
+// The dashboard session is an HttpOnly cookie, so scripts in the page cannot
+// read it. Its value is the dashboard password itself; there is no session
+// store, and /api/logout clears it.
+function dashboardCookie(req) {
+  const header = req.headers["cookie"]
+  if (typeof header !== "string") return ""
+  for (const part of header.split(";")) {
+    const i = part.indexOf("=")
+    if (i < 0) continue
+    if (part.slice(0, i).trim() === "zp_session") {
+      const raw = part.slice(i + 1).trim()
+      try { return decodeURIComponent(raw) } catch { return raw }
+    }
+  }
+  return ""
+}
+
+function isLoopbackHost(host) {
+  if (typeof host !== "string") return true
+  const h = host.replace(/^\[/, "").split("]")[0].split(":")[0].toLowerCase()
+  return h === "localhost" || h === "::1" || h === "127.0.0.1" || /^127\.\d+\.\d+\.\d+$/.test(h)
+}
+
+function setDashboardCookie(res, value, maxAgeSeconds, host) {
+  const secure = isLoopbackHost(host) ? "" : "; Secure"
+  res.setHeader("Set-Cookie", `zp_session=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAgeSeconds}${secure}`)
+}
+
+async function handleLogin(req, res) {
+  if (req.method !== "POST") return json(res, 405, { error: "method not allowed" })
+  const expected = DASHBOARD_PASSWORD || config.proxyKey
+  if (!expected) return json(res, 400, { error: "no dashboard password is configured" })
+  const raw = await readBody(req).catch(() => "")
+  let password = ""
+  try { password = String(JSON.parse(raw || "{}").password ?? "") } catch { password = "" }
+  if (!password || password !== expected) return json(res, 401, { error: "invalid password" })
+  setDashboardCookie(res, password, 86400, req.headers.host)
+  return json(res, 200, { ok: true })
+}
+
+function handleLogout(req, res) {
+  setDashboardCookie(res, "", 0, req.headers.host)
+  return json(res, 200, { ok: true })
+}
+
 function adminAuth(req, res) {
   const expected = DASHBOARD_PASSWORD || config.proxyKey
-  if (expected && bearer(req) !== expected) {
+  const presented = bearer(req) || dashboardCookie(req)
+  if (expected && presented !== expected) {
     json(res, 401, { error: "unauthorized" })
     return false
   }
@@ -2399,6 +2449,8 @@ async function router(req, res) {
   }
 
   if (p.startsWith("/api/")) {
+    if (p === "/api/login" && req.method === "POST") return handleLogin(req, res)
+    if (p === "/api/logout" && req.method === "POST") return handleLogout(req, res)
     if (p === "/api/config") return handleApiConfig(req, res)
     if (p === "/api/status" && req.method === "GET") return handleStatus(req, res)
     if (p === "/api/test" && req.method === "POST") return handleTest(req, res)
