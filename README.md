@@ -30,6 +30,7 @@ This repository is a maintained fork of [zen-proxy](https://github.com/12errh/ze
 | `PROXY_KEY` environment variable wins over saved config ([`c49b045`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/c49b045), [`aa39bfa`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/aa39bfa)) | The dashboard writes config back to disk, so a real secret ended up sitting in a file in the container volume. | Secrets stay in the container environment or your orchestrator, not on disk. |
 | Root `compose.yaml` and `Dockerfile` ([`6350e58`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/6350e58)) | There was no one-command path to a containerised deploy. | One-click Coolify deployment. Coolify's proxy terminates HTTPS and the container port is never published to the internet. |
 | README credential walkthrough ([`fdb9146`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/fdb9146)) | The upstream setup docs described a single credential, so people typed the dashboard password into their agent. | The two credentials are documented as separate fields, which is exactly the confusion this project's own setup hit. |
+| Opaque dashboard sessions | The dashboard password itself should not be a reusable browser cookie. | Login issues a random 256-bit token; only its digest is kept in memory. Sessions expire after 24 hours and are revoked on logout. |
 
 Fork-specific files: `compose.yaml`, `Dockerfile`, the two installers (which default to this repository instead of upstream), and this section.
 
@@ -37,7 +38,7 @@ Fork-specific files: `compose.yaml`, `Dockerfile`, the two installers (which def
 
 ## Security notes
 
-- **The dashboard password is kept in your browser, not on the server.** Login sets an `HttpOnly`, `SameSite=Strict` cookie (`zp_session`) that page scripts cannot read, and **Log out** clears it. Earlier builds stored the password in `localStorage` as plain text, where any script in the page could read it and it survived after you walked away. Run a current build.
+- **The dashboard cookie no longer contains the password.** Login creates a random 256-bit session token; the `HttpOnly`, `SameSite=Strict` cookie holds that token, and the server keeps only its SHA-256 digest in memory. The cookie expires after 24 hours, and **Log out** revokes it. HTTPS deployments also set `Secure`. Sessions are cleared when the proxy restarts, so log in again afterward. Earlier builds put the password itself in the cookie; redeploy this version to invalidate that format.
 - **The dashboard is the control plane, not a viewer.** Whoever holds the password can change `upstream` — which turns the proxy into a man-in-the-middle for every prompt your agent sends — set their own `proxy key`, set a `zen key`, rewrite `fallback models` and `model aliases`, change the `user-agent`, and read the request log.
 - **Never publish port 8787.** Keep the origin behind your reverse proxy with HTTPS. If a credential leaks, rotate both secrets in the container environment and redeploy.
 - **`POST /v1/messages` used to forward any `x-api-key` header upstream**, which bypassed `PROXY_KEY` on that route and opened the anonymous tier to anyone who could reach the origin. Fixed in this repository: a configured `proxy key` is now the only credential on that route. The OpenAI routes were always gated.

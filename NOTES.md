@@ -45,11 +45,11 @@ Upstream rate limits **per egress IP**. Measured same-second A/B: datacenter IP 
 ## Rejected or inert ideas
 
 - `#low` / `#high` / `#max` model ids are an OpenCode convention. The proxy silently falls back to the default model on an unknown id, and the upstream ignores `reasoning_effort` (53 / 56 / 48 reasoning tokens for low / none / high).
-- Storing the dashboard password in a hash or ciphertext does not fit a possession token; an HttpOnly cookie is the proportionate fix.
+- Dashboard auth now uses a random opaque session token rather than putting the password in the cookie. The server stores only a digest in memory; sessions expire after 24 hours or on restart.
 
 ## Pending
 
-1. ~~Dashboard password → HttpOnly cookie.~~ Done: `/api/login` sets `zp_session` (HttpOnly, SameSite=Strict, Secure off on loopback), `/api/logout` clears it, `adminAuth` accepts it, `localStorage` removed.
+1. ~~Dashboard password → HttpOnly cookie.~~ Done: `/api/login` sets a random `zp_session` token (HttpOnly, SameSite=Strict, Secure on non-loopback), only its digest is stored in memory, sessions expire after 24 hours or restart, and `/api/logout` revokes them. Legacy password-valued cookies are rejected and cleared.
 2. ~~`/v1/messages` `x-api-key` bypass.~~ Done: a client key is forwarded only when no `proxyKey` is configured.
 3. ~~README section on per-IP rate limits and the `ZEN_KEY` option.~~ Done.
 4. ~~Optional `EGRESS_PROXY` env var in `zen-proxy.mjs`.~~ Done and exposed in `compose.yaml` for Coolify.

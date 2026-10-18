@@ -2,7 +2,7 @@
 import http from "node:http"
 import fs from "node:fs"
 import path from "node:path"
-import { randomBytes } from "node:crypto"
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 import { fileURLToPath } from "node:url"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -12,6 +12,8 @@ const UI_PATH = path.join(__dirname, "public", "index.html")
 const ENV = process.env
 // Separate browser credential; fall back to PROXY_KEY for existing installs.
 const DASHBOARD_PASSWORD = ENV.DASHBOARD_PASSWORD ?? ""
+const DASHBOARD_SESSION_TTL_MS = 24 * 60 * 60 * 1000
+const dashboardSessions = new Map()
 
 // Egress is resolved from the process environment at startup. Node reads
 // NODE_USE_ENV_PROXY and the proxy URLs before this module runs, so the
@@ -2175,9 +2177,8 @@ async function handleModels(req, res) {
   json(res, 200, { object: "list", data: cache.data, ok: cache.ok })
 }
 
-// The dashboard session is an HttpOnly cookie, so scripts in the page cannot
-// read it. Its value is the dashboard password itself; there is no session
-// store, and /api/logout clears it.
+// The browser receives an opaque random token. Only its SHA-256 digest lives
+// in memory, so a copied server-side session record cannot be replayed.
 function dashboardCookie(req) {
   const header = req.headers["cookie"]
   if (typeof header !== "string") return ""
@@ -2190,6 +2191,42 @@ function dashboardCookie(req) {
     }
   }
   return ""
+}
+
+function sameSecret(left, right) {
+  const a = Buffer.from(String(left ?? ""))
+  const b = Buffer.from(String(right ?? ""))
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+function sessionDigest(token) {
+  return createHash("sha256").update(token).digest("hex")
+}
+
+function isDashboardSessionValid(token) {
+  if (!token) return false
+  const digest = sessionDigest(token)
+  const expiresAt = dashboardSessions.get(digest)
+  if (!expiresAt) return false
+  if (expiresAt <= Date.now()) {
+    dashboardSessions.delete(digest)
+    return false
+  }
+  return true
+}
+
+function createDashboardSession() {
+  const now = Date.now()
+  for (const [digest, expiresAt] of dashboardSessions) {
+    if (expiresAt <= now) dashboardSessions.delete(digest)
+  }
+  const token = randomBytes(32).toString("base64url")
+  dashboardSessions.set(sessionDigest(token), now + DASHBOARD_SESSION_TTL_MS)
+  return token
+}
+
+function revokeDashboardSession(token) {
+  if (token) dashboardSessions.delete(sessionDigest(token))
 }
 
 function isLoopbackHost(host) {
@@ -2210,20 +2247,31 @@ async function handleLogin(req, res) {
   const raw = await readBody(req).catch(() => "")
   let password = ""
   try { password = String(JSON.parse(raw || "{}").password ?? "") } catch { password = "" }
-  if (!password || password !== expected) return json(res, 401, { error: "invalid password" })
-  setDashboardCookie(res, password, 86400, req.headers.host)
+  if (!sameSecret(password, expected)) return json(res, 401, { error: "invalid password" })
+  const oldToken = dashboardCookie(req)
+  if (!sameSecret(oldToken, expected)) revokeDashboardSession(oldToken)
+  const token = createDashboardSession()
+  setDashboardCookie(res, token, DASHBOARD_SESSION_TTL_MS / 1000, req.headers.host)
   return json(res, 200, { ok: true })
 }
 
 function handleLogout(req, res) {
+  const token = dashboardCookie(req)
+  if (!sameSecret(token, DASHBOARD_PASSWORD || config.proxyKey)) revokeDashboardSession(token)
   setDashboardCookie(res, "", 0, req.headers.host)
   return json(res, 200, { ok: true })
 }
 
 function adminAuth(req, res) {
   const expected = DASHBOARD_PASSWORD || config.proxyKey
-  const presented = bearer(req) || dashboardCookie(req)
-  if (expected && presented !== expected) {
+  const bearerToken = bearer(req)
+  const cookieToken = dashboardCookie(req)
+  // Expire the old password-as-cookie format instead of accepting it.
+  if (cookieToken && sameSecret(cookieToken, expected)) {
+    setDashboardCookie(res, "", 0, req.headers.host)
+  }
+  const authorized = sameSecret(bearerToken, expected) || isDashboardSessionValid(cookieToken)
+  if (expected && !authorized) {
     json(res, 401, { error: "unauthorized" })
     return false
   }
