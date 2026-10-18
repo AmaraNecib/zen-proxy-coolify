@@ -13,6 +13,16 @@ const ENV = process.env
 // Separate browser credential; fall back to PROXY_KEY for existing installs.
 const DASHBOARD_PASSWORD = ENV.DASHBOARD_PASSWORD ?? ""
 
+// Optional egress proxy (single URL, e.g. https://user:pass@host:port). When set,
+// Node honors it for every upstream fetch via NODE_USE_ENV_PROXY. When unset,
+// traffic uses the machine default egress IP (normal behavior).
+const EGRESS_PROXY = (ENV.EGRESS_PROXY ?? "").trim()
+if (EGRESS_PROXY) {
+  process.env.HTTPS_PROXY = EGRESS_PROXY
+  process.env.HTTP_PROXY = EGRESS_PROXY
+  process.env.NODE_USE_ENV_PROXY = "1"
+}
+
 // Model ids only ever travel inside JSON bodies, never a URL or a path, so the
 // guarantee here is narrow but real: whitespace, quotes, backslashes and shell
 // metacharacters can never enter a catalog or config value. `/` and `.` stay
