@@ -920,6 +920,12 @@ function positionIndicator() {
   ind.style.transform = `translateX(${act.offsetLeft}px)`
 }
 window.addEventListener("resize", positionIndicator)
+// The indicator is sized and moved by script, so on a fresh load it sits at zero
+// width until something calls positionIndicator. Position it on first paint, again
+// after layout settles, and once the web font loads (button widths change then).
+requestAnimationFrame(positionIndicator)
+window.addEventListener("load", positionIndicator)
+if (document.fonts?.ready) document.fonts.ready.then(positionIndicator).catch(() => {})
 
 function switchTab(name) {
   document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name))
