@@ -10,6 +10,7 @@ services:
       ZEN_PROXY_CONFIG: /config/zen-proxy.json
       PROXY_KEY: ${PROXY_KEY}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+      EGRESS_PROXY: ${EGRESS_PROXY:-}
       RATE_LIMIT_MAX: "60"
       RATE_LIMIT_WINDOW_MS: "60000"
       TRUST_FORWARDED: "0"
