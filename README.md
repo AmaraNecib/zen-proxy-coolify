@@ -28,7 +28,7 @@ This repository includes a root-level `compose.yaml` and `Dockerfile` for Coolif
 2. In the resource's **Environment Variables**, set both `PROXY_KEY` and `DASHBOARD_PASSWORD` to strong, unique secrets. `PROXY_KEY` authenticates Pi and API requests; `DASHBOARD_PASSWORD` unlocks the dashboard and its admin controls. Keep them different. Generate each with `openssl rand -hex 32` or a password manager. Both are required before deploying.
 3. Configure the `zen-proxy` service domain to route to container port `8787`. Coolify's proxy handles HTTPS; the Compose file does not publish a host port.
 
-The Compose file references `${PROXY_KEY}` and `${DASHBOARD_PASSWORD}` so Coolify prompts for each value without treating a placeholder as its default. Keep both private. Set `PROXY_KEY` as Pi's API key; use `DASHBOARD_PASSWORD` only for dashboard login. Existing deployments without `DASHBOARD_PASSWORD` continue using `PROXY_KEY` for dashboard access.
+The Compose file references `${PROXY_KEY}` and `${DASHBOARD_PASSWORD}` so Coolify prompts for each value without treating a placeholder as its default. Keep both private. Set `PROXY_KEY` as Pi's API key. When the dashboard shows its **dashboard password** login prompt, enter `DASHBOARD_PASSWORD` (not `PROXY_KEY`). Existing deployments without `DASHBOARD_PASSWORD` continue using `PROXY_KEY` for dashboard access.
 
 ## Start here
 
