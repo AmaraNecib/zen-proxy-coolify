@@ -20,6 +20,16 @@
 
 ---
 
+## Deploy with Coolify
+
+This repository includes a root-level `compose.yaml` and `Dockerfile` for Coolify.
+
+1. Create a Docker Compose resource from this GitHub repository and use the root `compose.yaml`.
+2. In the resource's **Environment Variables**, add `PROXY_KEY` and set it to a strong, unique secret. Generate one with `openssl rand -hex 32` or a password manager. This value is required before deploying; do not leave it empty or use the variable name as its value.
+3. Configure the `zen-proxy` service domain to route to container port `8787`. Coolify's proxy handles HTTPS; the Compose file does not publish a host port.
+
+The Compose file references `${PROXY_KEY}` so Coolify prompts for the value without treating a placeholder as its default. Keep the key private. Set the same key in your client as its API key.
+
 ## Start here
 
 ### Install
