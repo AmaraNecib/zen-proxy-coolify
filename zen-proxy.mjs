@@ -10,6 +10,8 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 const CONFIG_PATH = process.env.ZEN_PROXY_CONFIG || path.join(__dirname, "zen-proxy.json")
 const UI_PATH = path.join(__dirname, "public", "index.html")
 const ENV = process.env
+// Separate browser credential; fall back to PROXY_KEY for existing installs.
+const DASHBOARD_PASSWORD = ENV.DASHBOARD_PASSWORD ?? ""
 
 // Model ids only ever travel inside JSON bodies, never a URL or a path, so the
 // guarantee here is narrow but real: whitespace, quotes, backslashes and shell
@@ -2129,12 +2131,21 @@ function scheduleUA() {
 }
 
 async function handleModels(req, res) {
-  if (!adminAuth(req, res)) return
+  if (!clientAuth(req, res)) return
   const cache = await fetchModels()
   json(res, 200, { object: "list", data: cache.data, ok: cache.ok })
 }
 
 function adminAuth(req, res) {
+  const expected = DASHBOARD_PASSWORD || config.proxyKey
+  if (expected && bearer(req) !== expected) {
+    json(res, 401, { error: "unauthorized" })
+    return false
+  }
+  return true
+}
+
+function clientAuth(req, res) {
   if (config.proxyKey && bearer(req) !== config.proxyKey) {
     json(res, 401, { error: "unauthorized" })
     return false

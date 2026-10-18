@@ -9,6 +9,7 @@ services:
       PORT: "8787"
       ZEN_PROXY_CONFIG: /config/zen-proxy.json
       PROXY_KEY: ${PROXY_KEY}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
       RATE_LIMIT_MAX: "60"
       RATE_LIMIT_WINDOW_MS: "60000"
       TRUST_FORWARDED: "0"
