@@ -138,7 +138,7 @@ main { max-width:1120px; margin:28px auto 70px; padding:0 18px }
 @media (max-width:760px) { .cards { grid-template-columns:repeat(2,1fr) } }
 @media (max-width:460px) { .cards { grid-template-columns:1fr } }
 .card {
-  position:relative; padding:20px; min-width:0;
+  position:relative; padding:18px; min-width:0; min-height:178px;
   background:var(--card); border:var(--line); border-radius:22px 8px 22px 8px;
   box-shadow:8px 8px 0 var(--ink);
   transform:rotate(var(--tilt,0));
@@ -153,21 +153,25 @@ main { max-width:1120px; margin:28px auto 70px; padding:0 18px }
 }
 .card .label::before { content:"◦" }
 .card .value { font-size:34px; font-weight:900; margin-top:10px; letter-spacing:-.045em; font-variant-numeric:tabular-nums; text-transform:uppercase }
-#ovUptime { font-size:24px; letter-spacing:-.055em; white-space:nowrap }
+#ovUptime { font-size:34px; letter-spacing:-.055em; white-space:nowrap }
 .card .value.mono { font-size:14px; letter-spacing:0; text-transform:none; font-weight:800; overflow-wrap:anywhere; word-break:break-word; line-height:1.4 }
 .card .sub { font-family:var(--mono); font-size:10.5px; color:var(--muted); margin-top:8px; text-transform:uppercase; letter-spacing:.08em }
-.upstream-heading { justify-content:space-between }
+.upstream-heading { justify-content:flex-start; gap:8px }
+.upstream-heading > span:first-of-type { white-space:nowrap }
 .upstream-status { display:inline-flex; align-items:center; gap:6px; font-size:9px; letter-spacing:.06em; white-space:nowrap }
+.upstream-status { margin-left:auto }
 .upstream-status .dot { width:8px; height:8px; flex:0 0 8px; border-radius:50%; background:var(--muted) }
 .request-breakdown { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; padding-top:12px; border-top:1px solid rgba(26,22,18,.35) }
 .request-breakdown > div { display:flex; justify-content:space-between; align-items:baseline; gap:8px }
 .request-breakdown span { font:800 9px var(--mono); letter-spacing:.08em; text-transform:uppercase }
 .request-breakdown strong { font:800 14px var(--mono); font-variant-numeric:tabular-nums }
 .card.hero .request-breakdown { border-color:rgba(26,22,18,.45) }
-.compact-block + .compact-block { border-top:1px solid rgba(26,22,18,.25); margin-top:14px; padding-top:12px }
-.compact-block .value { margin-top:4px }
-.compact-block .sub { margin-top:4px }
-.compact-block .value.mono { overflow-wrap:normal; word-break:normal }
+.compact-metrics { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px }
+.compact-metric + .compact-metric { border-left:1px solid rgba(26,22,18,.25); padding-left:12px }
+.compact-metric .mini-label { font:800 9px var(--mono); color:var(--muted); letter-spacing:.1em; text-transform:uppercase }
+.compact-metric .value { margin-top:4px }
+.compact-metric .value.mono { overflow-wrap:normal; word-break:normal; font-size:14px }
+.compact-metric .sub { margin-top:4px; font-size:9px; line-height:1.4; letter-spacing:.04em }
 .cards .card.hero {
   background:var(--acid);
 }
@@ -400,15 +404,18 @@ textarea { resize:vertical; min-height:96px; font-family:var(--mono); font-size:
       </div>
       <div class="card"><div class="label">Uptime</div><div class="value" id="ovUptime">–</div><div class="sub">seconds online</div></div>
       <div class="card">
-        <div class="compact-block">
-          <div class="label">Models</div>
-          <div class="value" id="ovModels">–</div>
-          <div class="sub" id="ovAllowed">– allowed</div>
-        </div>
-        <div class="compact-block">
-          <div class="label">Egress proxy</div>
-          <div class="value mono" id="ovEgress">–</div>
-          <div class="sub" id="ovEgressDetail">checking startup config</div>
+        <div class="label">Models + egress</div>
+        <div class="compact-metrics">
+          <div class="compact-metric">
+            <div class="mini-label">Models</div>
+            <div class="value" id="ovModels">–</div>
+            <div class="sub" id="ovAllowed">– allowed</div>
+          </div>
+          <div class="compact-metric">
+            <div class="mini-label">Egress</div>
+            <div class="value mono" id="ovEgress">–</div>
+            <div class="sub" id="ovEgressDetail">checking startup config</div>
+          </div>
         </div>
       </div>
     </div>
@@ -598,11 +605,11 @@ async function refreshStatus() {
     $("ovModels").textContent = st.models.total
     $("ovAllowed").textContent = st.models.allowed + " allowed"
     const egressLabels = {
-      active: ["active", "Node started with proxy routing enabled"],
-      disabled: ["not configured", "Using the server's default network route"],
-      "not-active": ["not active", "Set EGRESS_PROXY, HTTP_PROXY, HTTPS_PROXY and NODE_USE_ENV_PROXY before startup"],
-      "unsupported-runtime": ["unsupported Node", "Use Node 22.21+ or 24+"],
-      invalid: ["invalid URL", "EGRESS_PROXY must be an http:// or https:// URL"],
+      active: ["active", "Proxy routing enabled"],
+      disabled: ["off", "Using direct network route"],
+      "not-active": ["not active", "Check proxy environment at startup"],
+      "unsupported-runtime": ["unsupported", "Update Node.js runtime"],
+      invalid: ["invalid", "Check the egress proxy URL"],
     }
     const [egressLabel, egressDetail] = egressLabels[st.egressProxy?.state] || ["unknown", "Check the proxy environment"]
     $("ovEgress").textContent = egressLabel
