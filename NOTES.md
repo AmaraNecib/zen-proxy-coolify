@@ -21,20 +21,23 @@ The local trial config has no API key. Keep it out of Git and never deploy it.
 
 After changing the dashboard password or upgrading from a password-valued cookie, log in again.
 
+An earlier cookie-auth build shipped `async async function submitAuth()`. That syntax error stopped the dashboard script, so the page stayed blank and its login flow never ran. Current builds load.
+
 ## Models and images
 
-The Pi provider has four models with text and image input:
+The Pi provider lists five models. Four accept text and image; `beam-free` accepts text only.
 
-| Model | Reasoning flag |
-|---|---|
-| `big-pickle` | off |
-| `deepseek-v4.1-flash-free` | on |
-| `glm-5.3-flash-free` | on |
-| `mimo-v2.6-flash-free` | on |
+| Model | Reasoning flag | Input |
+|---|---|---|
+| `big-pickle` | off | text, image |
+| `deepseek-v4.1-flash-free` | on | text, image |
+| `glm-5.3-flash-free` | on | text, image |
+| `mimo-v2.6-flash-free` | on | text, image |
+| `beam-free` | on | text |
 
-Image input was checked with a red-and-blue test image on all four models. Pi reads model capabilities at startup, so restart Pi after changing its `models.json`.
+Image input was checked with a red-and-blue test image on the four image models. Pi reads model capabilities at startup, so restart Pi after changing its `models.json`.
 
-The OpenCode upstream ignored `reasoning_effort` in our checks. Pi's `#low`, `#high`, and `#max` suffixes also fell back to the default model. The `big-pickle` reasoning flag is still off; turn it on only if Pi's thinking controls need it.
+The OpenCode upstream ignored `reasoning_effort` in our checks. Pi's `#low`, `#high`, and `#max` suffixes fell back to the default model until `deepseek-v4.1-flash-free` was given a `thinkingLevelMap`; with the map, `/thinking` reaches `low` through `max` on that model. `beam-free` is text-only because upstream rejects a conversation containing an image. The `big-pickle` reasoning flag is still off; turn it on only if Pi's thinking controls need it.
 
 ## Rate limits and egress proxy
 
