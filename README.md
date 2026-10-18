@@ -20,56 +20,60 @@
 
 ---
 
-## A fork of zen-proxy
+## About this fork
 
-This repository is a maintained fork of [zen-proxy](https://github.com/12errh/zen-proxy) (MIT) by its original author. Everything in the header above is upstream work; the changes below are deployment and credential separation on top of it.
+This repository is based on [12errh/zen-proxy](https://github.com/12errh/zen-proxy), an MIT-licensed project. This fork adds:
 
-| Change | Why it exists | What it buys you |
-|---|---|---|
-| Separate `DASHBOARD_PASSWORD` from `PROXY_KEY` ([`bd6ad32`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/bd6ad32)) | One secret was doing two jobs: gating the dashboard and authorising API calls. | Compromising one no longer compromises both. You can give someone dashboard access without giving them an API credential, and rotate either one independently. |
-| `PROXY_KEY` environment variable wins over saved config ([`c49b045`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/c49b045), [`aa39bfa`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/aa39bfa)) | The dashboard writes config back to disk, so a real secret ended up sitting in a file in the container volume. | Secrets stay in the container environment or your orchestrator, not on disk. |
-| Root `compose.yaml` and `Dockerfile` ([`6350e58`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/6350e58)) | There was no one-command path to a containerised deploy. | One-click Coolify deployment. Coolify's proxy terminates HTTPS and the container port is never published to the internet. |
-| README credential walkthrough ([`fdb9146`](https://github.com/AmaraNecib/zen-proxy-coolify/commit/fdb9146)) | The upstream setup docs described a single credential, so people typed the dashboard password into their agent. | The two credentials are documented as separate fields, which is exactly the confusion this project's own setup hit. |
-| Opaque dashboard sessions | The dashboard password itself should not be a reusable browser cookie. | Login issues a random 256-bit token; only its digest is kept in memory. Sessions expire after 24 hours and are revoked on logout. |
+| Change | Details |
+|---|---|
+| Coolify deployment | `compose.yaml` and `Dockerfile` run the proxy on port 8787 behind Coolify's HTTPS proxy. |
+| Separate credentials | `PROXY_KEY` protects API requests. `DASHBOARD_PASSWORD` protects dashboard access. |
+| Environment secrets | `PROXY_KEY` from Coolify takes priority over the saved config. |
+| Dashboard sessions | Login uses a random session token. The server stores its hash for up to 24 hours. |
+| Egress proxy | `EGRESS_PROXY` routes upstream requests through a proxy you configure. |
+| Installers | The install scripts download this fork. |
 
-Fork-specific files: `compose.yaml`, `Dockerfile`, the two installers (which default to this repository instead of upstream), and this section.
-
----
-
-## Security notes
-
-- **The dashboard cookie no longer contains the password.** Login creates a random 256-bit session token; the `HttpOnly`, `SameSite=Strict` cookie holds that token, and the server keeps only its SHA-256 digest in memory. The cookie expires after 24 hours, and **Log out** revokes it. HTTPS deployments also set `Secure`. Sessions are cleared when the proxy restarts, so log in again afterward. Earlier builds put the password itself in the cookie; redeploy this version to invalidate that format.
-- **The dashboard is the control plane, not a viewer.** Whoever holds the password can change `upstream` — which turns the proxy into a man-in-the-middle for every prompt your agent sends — set their own `proxy key`, set a `zen key`, rewrite `fallback models` and `model aliases`, change the `user-agent`, and read the request log.
-- **Never publish port 8787.** Keep the origin behind your reverse proxy with HTTPS. If a credential leaks, rotate both secrets in the container environment and redeploy.
-- **`POST /v1/messages` used to forward any `x-api-key` header upstream**, which bypassed `PROXY_KEY` on that route and opened the anonymous tier to anyone who could reach the origin. Fixed in this repository: a configured `proxy key` is now the only credential on that route. The OpenAI routes were always gated.
+The sections below explain the changes in this fork. The remaining setup guides follow upstream unless they say otherwise.
 
 ---
 
-## Rate limits (429)
+## Security
 
-Upstream rate limits are **per egress IP**, not global. A datacenter IP (typical for a VPS/Coolify deploy) can return `429` on `mimo-v2.6-flash-free` and `glm-5.3-flash-free` while a residential IP returns `200` on the same models in the same second. There is no code fix inside the proxy for this — it is upstream quota enforcement.
+- The dashboard cookie contains a random token, not your password. It is `HttpOnly` and uses `SameSite=Strict`. The proxy adds `Secure` on non-loopback hosts.
+- The server stores only the token hash in memory. Sessions expire after 24 hours, on logout, or when the proxy restarts.
+- After upgrading from an older build, log in again. The proxy clears the old password cookie.
+- Use different values for `PROXY_KEY` and `DASHBOARD_PASSWORD`. The first authorizes API clients. The second unlocks the dashboard, where an admin can change the upstream, keys, model list, and other settings.
+- Keep port 8787 behind HTTPS. Do not publish it directly. If either secret leaks, replace it in Coolify and redeploy.
+- `/v1/messages` accepts the configured `PROXY_KEY`. A caller-supplied `x-api-key` is forwarded only when no proxy key is configured.
 
-Levers, best first:
+---
 
-1. Run the proxy where the quota is healthy (your own machine, residential connection).
-2. Bring your own Zen key: set `ZEN_KEY` (or `defaultZenKey` in config). A real key gets a higher, steadier quota than anonymous `public`.
-3. Order `fallbackModels` with healthy models first; the fallback chain already absorbs `429`s.
+## Rate limits and egress proxy
 
-IP rotation to dodge the limit is out of scope — it evades the upstream terms. If you operate a proxy or gateway on a network you own, set `EGRESS_PROXY` to its URL in the Coolify environment to route upstream requests through it. Compose passes it to Node before startup; the dashboard's **Egress proxy** card reports whether startup proxy routing is active. This changes the egress path; it does not bypass upstream quota rules. The dashboard's **Requests served** count is inbound traffic to zen-proxy, while Oxylabs reports outbound traffic through its proxy.
+In a check on October 18, 2026, OpenCode returned `429` from the Coolify server's datacenter IP and `200` from a residential connection for the same models. That points to an upstream egress-IP limit. We found no evidence that changing the user-agent helps.
 
-When starting Node outside Compose, set `EGRESS_PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, and `NODE_USE_ENV_PROXY=1` in the shell before launching `node zen-proxy.mjs`. Node reads proxy settings during process startup.
+Try these options:
+
+1. Set `ZEN_KEY` if you have your own OpenCode Zen key.
+2. Put models that are responding into `fallbackModels` first. The proxy moves to the next model after a `429`.
+3. Run the proxy on a network with working quota.
+4. If you operate an egress proxy, set `EGRESS_PROXY` in Coolify. Compose sets Node's proxy variables before startup. The dashboard shows whether routing is enabled.
+
+The zen-proxy dashboard counts requests sent to zen-proxy. Oxylabs counts requests sent out through its proxy. When running Node outside Compose, set `EGRESS_PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, and `NODE_USE_ENV_PROXY=1` before starting Node.
 
 ---
 
 ## Deploy with Coolify
 
-This repository includes a root-level `compose.yaml` and `Dockerfile` for Coolify.
+1. Create a Docker Compose resource from this repository. Use the root `compose.yaml`.
+2. Add these environment variables in Coolify:
+   - `PROXY_KEY`: API key for Pi and other clients.
+   - `DASHBOARD_PASSWORD`: password for the dashboard.
+   - `EGRESS_PROXY`: optional. Set this to your proxy URL if you want upstream requests to use it.
+3. Give `PROXY_KEY` and `DASHBOARD_PASSWORD` different, strong values. Both are required. You can generate them with `openssl rand -hex 32`.
+4. Set the service domain to port 8787. Coolify handles HTTPS. The Compose file does not publish that port directly.
 
-1. Create a Docker Compose resource from this GitHub repository and use the root `compose.yaml`.
-2. In the resource's **Environment Variables**, set both `PROXY_KEY` and `DASHBOARD_PASSWORD` to strong, unique secrets. `PROXY_KEY` authenticates Pi and API requests; `DASHBOARD_PASSWORD` unlocks the dashboard and its admin controls. Keep them different. Generate each with `openssl rand -hex 32` or a password manager. Both are required before deploying. To route upstream calls through a proxy you operate, also set `EGRESS_PROXY` to its full `http://` or `https://` URL. Use Node 22.21+ or 24+; the included Docker image uses Node 24.
-3. Configure the `zen-proxy` service domain to route to container port `8787`. Coolify's proxy handles HTTPS; the Compose file does not publish a host port.
-
-The Compose file references `${PROXY_KEY}` and `${DASHBOARD_PASSWORD}` so Coolify prompts for each value without treating a placeholder as its default. Keep both private. Set `PROXY_KEY` as Pi's API key. When the dashboard shows its **dashboard password** login prompt, enter `DASHBOARD_PASSWORD` (not `PROXY_KEY`). Existing deployments without `DASHBOARD_PASSWORD` continue using `PROXY_KEY` for dashboard access.
+Enter `PROXY_KEY` in Pi's API key field. Enter `DASHBOARD_PASSWORD` on the dashboard login screen. Older installs without `DASHBOARD_PASSWORD` use `PROXY_KEY` for dashboard login.
 
 ## Start here
 
