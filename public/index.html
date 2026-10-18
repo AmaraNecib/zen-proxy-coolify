@@ -501,7 +501,7 @@ function showAuth() {
   $("authScreen").style.display = "flex"
   $("authKey").focus()
 }
-async async function submitAuth() {
+async function submitAuth() {
   const password = $("authKey").value.trim()
   try {
     await api("/api/login", { method: "POST", body: JSON.stringify({ password }) })
@@ -945,17 +945,11 @@ async function refreshAll() {
   try { await refreshStatus(); await refreshModels() } catch (e) { if (e.message === "unauthorized") showAuth() }
 }
 
-if (key) {
+api("/api/status").then(() => {
   refreshAll()
   setInterval(refreshStatus, 4000)
   setInterval(loadLogs, 8000)
-} else {
-  api("/api/status").then(() => {
-    refreshAll()
-    setInterval(refreshStatus, 4000)
-    setInterval(loadLogs, 8000)
-  }).catch(() => showAuth())
-}
+}).catch(() => showAuth())
 </script>
 </body>
 </html>

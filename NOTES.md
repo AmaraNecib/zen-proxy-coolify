@@ -16,7 +16,7 @@ Work log for this fork, kept in-repo so nothing depends on a session. Upstream: 
 - `PROXY_KEY` — sent by Pi and API clients as `Authorization: Bearer`. Set in Coolify env.
 - `DASHBOARD_PASSWORD` — dashboard login and admin routes (`/api/*`, `/v1/models`). Separate secret on purpose.
 - Local `trial-config.json` ships with `proxyKey: ""` (open, no auth). Never commit or deploy that file.
-- Known gap: on `/v1/messages` any `x-api-key` header overrides the `proxyKey` check, so the real gate on a public deployment is the reverse proxy, not the key alone.
+- Fixed: `/v1/messages` forwards a client `x-api-key` only when no `proxyKey` is configured; a configured `PROXY_KEY` remains the gate.
 
 ## Model capabilities
 
@@ -51,5 +51,5 @@ Upstream rate limits **per egress IP**. Measured same-second A/B: datacenter IP 
 1. ~~Dashboard password → HttpOnly cookie.~~ Done: `/api/login` sets `zp_session` (HttpOnly, SameSite=Strict, Secure off on loopback), `/api/logout` clears it, `adminAuth` accepts it, `localStorage` removed.
 2. ~~`/v1/messages` `x-api-key` bypass.~~ Done: a client key is forwarded only when no `proxyKey` is configured.
 3. ~~README section on per-IP rate limits and the `ZEN_KEY` option.~~ Done.
-4. Optional `EGRESS_PROXY` env var in `zen-proxy.mjs`.
+4. ~~Optional `EGRESS_PROXY` env var in `zen-proxy.mjs`.~~ Done and exposed in `compose.yaml` for Coolify.
 5. Flip `big-pickle` to `reasoning: true` in `models.json` if its thinking switch is wanted.

@@ -54,7 +54,7 @@ Levers, best first:
 2. Bring your own Zen key: set `ZEN_KEY` (or `defaultZenKey` in config). A real key gets a higher, steadier quota than anonymous `public`.
 3. Order `fallbackModels` with healthy models first; the fallback chain already absorbs `429`s.
 
-IP rotation to dodge the limit is out of scope — it evades the upstream terms. An `EGRESS_PROXY` env var pointed at a network you own is the honest version if you need one; not yet implemented.
+IP rotation to dodge the limit is out of scope — it evades the upstream terms. If you operate a proxy or gateway on a network you own, set `EGRESS_PROXY` to its URL in the Coolify environment to route upstream requests through it. This changes the egress path; it does not bypass upstream quota rules.
 
 ---
 
@@ -206,7 +206,7 @@ The OpenAI-shaped routes get no name mapping, so they are handled differently: a
 | `autoSync` / `autoSyncIntervalMs` | `true` / `3600000` | Runtime discovery of newly-offered free models |
 | `trustForwarded` | `false` | Honour `x-forwarded-for` behind a reverse proxy |
 
-`HOST` `PORT` `ZEN_URL` `ZEN_UA` `INJECT_SESSION=0` `AUTO_UA=0` `UA_REFRESH_MS` `AGENT_TOOLS=0` `PROBE_AUTH` `DEFAULT_MODEL` `FALLBACK_MODELS` `MODEL_ALIASES` `RESPONSES_MODELS` `PROXY_KEY` `ZEN_KEY` `TRUST_FORWARDED=1` `TIMEOUT_MS` `CACHE_MS` `RATE_LIMIT_MAX` `RATE_LIMIT_WINDOW_MS` `AUTO_SYNC=0` `AUTO_SYNC_MS` `ZEN_PROXY_CONFIG`
+`HOST` `PORT` `ZEN_URL` `ZEN_UA` `EGRESS_PROXY` `INJECT_SESSION=0` `AUTO_UA=0` `UA_REFRESH_MS` `AGENT_TOOLS=0` `PROBE_AUTH` `DEFAULT_MODEL` `FALLBACK_MODELS` `MODEL_ALIASES` `RESPONSES_MODELS` `PROXY_KEY` `ZEN_KEY` `TRUST_FORWARDED=1` `TIMEOUT_MS` `CACHE_MS` `RATE_LIMIT_MAX` `RATE_LIMIT_WINDOW_MS` `AUTO_SYNC=0` `AUTO_SYNC_MS` `ZEN_PROXY_CONFIG`
 
 Anonymous `public` access shares a per-IP quota that is sometimes saturated. Set `defaultZenKey`, or send `x-zen-key` per request, for steadier service.
 </details>
